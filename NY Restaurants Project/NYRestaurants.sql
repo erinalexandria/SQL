@@ -1,7 +1,7 @@
-\* New York Restaurants 
-We have put together a table of restaurants called nomnom and we need your help to answer some questions. 
-Use the SQL commands you just learned and find the best dinner spots in the city.
-*/ 
+-- New York Restaurants 
+-- We have put together a table of restaurants called nomnom and we need your help to answer some questions. 
+-- Use the SQL commands you just learned and find the best dinner spots in the city.
+ 
 
 -- 1. View nomnom Table
 
@@ -64,13 +64,12 @@ FROM nomnom
 ORDER BY review DESC
 LIMIT 10;
 
-\* 11. Use a CASE statement to change the rating system to:
-
-review > 4.5 is Extraordinary
-review > 4 is Excellent
-review > 3 is Good
-review > 2 is Fair
-Everything else is Poor */
+-- 11. Use a CASE statement to change the rating system to:
+-- review > 4.5 is Extraordinary
+-- review > 4 is Excellent
+-- review > 3 is Good
+-- review > 2 is Fair
+-- Everything else is Poor
 
 SELECT name,
 CASE
