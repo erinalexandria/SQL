@@ -1,0 +1,219 @@
+
+ERIN BROWN
+CWID: 20010068
+
+/*---------------------------------------------------------------------
+Query #1
+For each customer, compute the minimum and maximum sales quantities 
+along with the corresponding products (purchased), dates (i.e., dates 
+of those minimum and maximum sales quantities) and the states in which 
+the sale transactions took place. If there are >1 occurrences of the 
+min or max, display all. For the same customer, compute the average 
+sales quantity.
+---------------------------------------------------------------------*/
+WITH q1 AS
+(SELECT cust, MIN(quant) AS min_q, MAX(quant) AS max_q, AVG(quant) AS avg_q
+FROM sales
+GROUP by cust
+),
+q2 AS
+(SELECT q1.cust, q1.min_q, s.prod AS min_prod, s.date AS min_date, s.state AS min_state, q1.max_q, q1.avg_q
+FROM q1, sales AS s
+WHERE q1.min_q = s.quant
+AND q1.cust = s.cust
+),
+q3 AS
+(SELECT q2.cust, q2.min_q, q2.min_prod, q2.min_date, q2.min_state, q2.max_q, s.prod AS max_prod, s.date AS max_date, s.state AS max_state, q2.avg_q
+FROM q2, sales AS s
+WHERE q2.cust = s.cust
+AND q2.max_q = s.quant
+)
+SELECT * FROM q3
+
+
+/*---------------------------------------------------------------------
+Query #2
+For each year and month combination, find the “busiest” and the 
+“slowest” day (those days with the most and the least total sales 
+quantities of products sold) and the corresponding total sales 
+quantities (i.e., SUMs).
+---------------------------------------------------------------------*/
+WITH q1 AS
+(SELECT year, month, day, sum(quant) AS total
+ FROM sales
+GROUP BY year, month, day
+),
+q2 AS
+(SELECT year, month, MAX(total) AS busiest_q
+FROM q1
+GROUP BY year, month
+),
+q3 AS
+(SELECT q1.year, q1.month, q1.day AS busiest_day, q2.busiest_q
+FROM q1, q2
+WHERE q2.busiest_q = q1.total
+ AND q1.year = q2.year
+ AND q1.month = q2.month
+),
+q4 AS
+(SELECT year, month, MIN(total) AS slowest_q
+FROM q1
+GROUP BY year, month
+),
+q5 AS
+(SELECT q1.year, q1.month, q1.day AS slowest_day, q4.slowest_q
+FROM q1, q4
+WHERE q4.slowest_q = q1.total
+ AND q1.year = q4.year
+ AND q1.month = q4.month
+)
+SELECT q3.year, q3.month, q3.busiest_day, q3.busiest_q, q5.slowest_day, q5.slowest_q
+FROM q3
+JOIN q5
+ON q3.year = q5.year 
+AND q3.month = q5.month
+ORDER BY year, month ASC
+
+/*---------------------------------------------------------------------
+Query #3
+ For each customer, find the “most favorite” product (the product that 
+ the customer purchased the most) and the “least favorite” product 
+ (the product that the customer purchased the least).
+---------------------------------------------------------------------*/
+WITH q1 AS
+(SELECT cust, prod, sum(quant) AS total_q
+ FROM sales
+GROUP BY cust, prod
+),
+q2 AS
+(SELECT cust, MAX(total_q) AS total_fav_prod
+FROM q1
+GROUP BY cust
+),
+q3 AS
+(SELECT q1.cust, q1.prod AS fav_prod, q2.total_fav_prod
+FROM q1, q2
+WHERE q2.total_fav_prod = q1.total_q
+ AND q1.cust = q2.cust
+),
+q4 AS
+(SELECT cust, MIN(total_q) AS total_least_fav_prod
+FROM q1
+GROUP BY cust
+),
+q5 AS
+(SELECT q1.cust, q1.prod AS least_fav_prod, q4.total_least_fav_prod
+FROM q1, q4
+WHERE q4.total_least_fav_prod = q1.total_q
+ AND q1.cust = q4.cust
+)
+SELECT q3.cust, q3.fav_prod, q3.total_fav_prod, q5.least_fav_prod, q5.total_least_fav_prod
+FROM q3
+JOIN q5
+ON q3.cust = q5.cust
+
+/*---------------------------------------------------------------------
+Query #4
+For each customer and product combination, show the average sales 
+quantities for the four seasons, Spring, Summer, Fall and Winter in 
+four separate columns – Spring being the 3 months of March, April 
+and May; and Summer the next 3 months (June, July and August); and 
+so on – ignore the YEAR component of the dates (i.e., 10/25/2016 is 
+considered the same date as 10/25/2017, etc.). Additionally, compute 
+the average for the “whole” year (again ignoring the YEAR component, 
+meaning simply compute AVG) along with the total quantities (SUM) and 
+the counts (COUNT).
+---------------------------------------------------------------------*/
+WITH q1 AS 
+(SELECT cust, prod,  SUM(quant), AVG(quant)
+FROM sales
+GROUP BY cust, prod
+ ),
+ q2 AS
+ (SELECT cust, prod, AVG(quant) AS spring_avg
+ FROM sales
+ WHERE month IN (3, 4, 5) 
+ GROUP BY cust, prod
+ ),
+ q3 AS
+ (SELECT cust, prod, AVG(quant) AS summer_avg
+ FROM sales
+ WHERE month IN (6, 7, 8)
+ GROUP BY cust, prod
+ ),
+ q4 AS
+ (SELECT cust, prod, AVG(quant) AS fall_avg
+ FROM sales
+ WHERE month IN (9, 10, 11)
+ GROUP BY cust, prod
+ ),
+ q5 AS
+ (SELECT cust, prod, AVG(quant) AS winter_avg
+ FROM sales
+ WHERE month IN (12, 1, 2)
+ GROUP BY cust, prod
+ ),
+ q6 AS
+ (SELECT cust, prod, SUM(quant) AS Total, AVG(quant) AS average, COUNT(quant) as count
+ FROM sales
+ GROUP BY cust, prod
+ )
+ SELECT q1.cust, q1.prod AS product, q2.spring_avg, q3.summer_avg, q4.fall_avg, q5.winter_avg, q6.average, q6.Total, q6.count
+ FROM q1
+ JOIN q2 ON q2.cust = q1.cust 
+ AND q2.prod = q1.prod
+ JOIN q3 ON q3.cust = q1.cust 
+ AND q3.prod = q1.prod
+ JOIN q4 ON q4.cust = q1.cust 
+ AND q4.prod = q1.prod
+ JOIN q5 ON q5.cust = q1.cust 
+ AND q5.prod = q1.prod
+ JOIN q6 ON q6.cust = q1.cust 
+ AND q6.prod = q1.prod
+
+ /*---------------------------------------------------------------------
+Query #5
+For each product, output the maximum sales quantities for each quarter 
+in 4 separate columns. Like the first report, display the corresponding 
+dates (i.e., dates of those corresponding maximum sales quantities). 
+Ignore the YEAR component of the dates (i.e., 10/25/2016 is considered 
+the same date as 10/25/2017, etc.).
+---------------------------------------------------------------------*/
+WITH q1 AS (
+SELECT prod
+FROM sales
+GROUP BY prod
+),
+q2 AS (
+SELECT prod, MAX(quant) AS spring_max_sales_quantity, MAX(date) AS spring_sales_date
+FROM sales
+WHERE month IN (3, 4, 5)
+GROUP BY prod
+),
+q3 AS (
+SELECT prod, MAX(quant) AS summer_max_sales_quantity, MAX(date) AS summer_sales_date
+FROM sales
+WHERE month IN (6, 7, 8)
+GROUP BY prod
+),
+q4 AS (
+SELECT prod, MAX(quant) AS fall_max_sales_quantity, MAX(date) AS fall_sales_date
+FROM sales
+WHERE month IN (9, 10, 11)
+GROUP BY prod
+),
+q5 AS (
+SELECT prod, MAX(quant) AS winter_max_sales_quantity, MAX(date) AS winter_sales_date
+FROM sales
+WHERE month IN (12, 1, 2)
+GROUP BY prod
+)
+SELECT q1.prod AS product,
+q2.spring_max_sales_quantity, q2.spring_sales_date AS date, q3.summer_max_sales_quantity, q3.summer_sales_date AS date, q4.fall_max_sales_quantity, q4.fall_sales_date AS date, q5.winter_max_sales_quantity, q5.winter_sales_date AS date
+FROM q1
+JOIN q2 ON q2.prod = q1.prod
+JOIN q3 ON q3.prod = q1.prod
+JOIN q4 ON q4.prod = q1.prod
+JOIN q5 ON q5.prod = q1.prod
+
+ 
