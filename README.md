@@ -3,6 +3,7 @@
 
 **📚 Homework #1 & Homework #2**
 - For each homework assignment, I completed complex OLAP SQL queries PostgreSQL on large complex data sets (OLAP queries are complex queries that touch large amounts of data, discover patterns and trends in data, and have expensive loading times)
+- The data used for these assignments was sales data 
 
 ### Codecademy Projects: 
 
