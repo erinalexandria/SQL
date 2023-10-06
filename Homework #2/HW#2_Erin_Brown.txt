@@ -1,0 +1,217 @@
+
+/*---------------------------------------------------------------------
+Query #1
+For each customer, product and month, count the number of sales transactions that
+were between the previous and the following month's average sales quantities. For
+January and December, display <NULL> or 0
+---------------------------------------------------------------------*/
+
+WITH q1 AS
+(SELECT cust, prod, month, AVG(quant) AS avg_q
+ FROM sales
+ GROUP BY cust, prod, month
+ ),
+ q2 AS
+ (SELECT sales.cust, sales.prod, sales.month, sales.quant, q1.avg_q AS prev_q
+ FROM sales
+ JOIN q1 ON sales.cust = q1.cust
+ AND sales.prod = q1.prod
+ AND sales.month = q1.month + 1
+ ),
+ q3 AS
+(SELECT q2.cust, q2.prod, q2.month, q2.quant, q2.prev_q, q1.avg_q AS following_q
+ FROM q2
+ JOIN q1 ON q2.cust = q1.cust
+ AND q2.prod = q1.prod
+ AND q2.month = q1.month - 1
+ ),
+q4 AS
+(SELECT cust, prod, month, COUNT(quant) AS sales_count_between_avgs
+FROM q3
+WHERE (quant >= prev_q AND quant <= following_q)
+OR (quant >= following_q AND quant <= prev_q)
+GROUP BY cust, prod, month
+)
+SELECT q1.cust, q1.prod, q1.month, q4.sales_count_between_avgs
+FROM q1
+LEFT JOIN q4 ON q1.cust = q4.cust
+AND q1.prod = q4.prod
+AND q1.month = q4.month
+ORDER BY q1.month
+
+/*---------------------------------------------------------------------
+Query #2
+For customer and product, show the average sales before, during and after each
+month (e.g., for February, show average sales of January and March. For “before”
+January and “after” December, display <NULL>. The “YEAR” attribute is not
+considered for this query – for example, both January of 2017 and January of 2018
+are considered January regardless of the year.
+---------------------------------------------------------------------*/
+
+WITH q1 AS
+(SELECT cust, prod, month, AVG(quant) AS avg_q
+ FROM sales
+ GROUP BY cust, prod, month
+ ),
+ q2 AS
+ (SELECT sales.cust, sales.prod, sales.month, q1.avg_q AS during_avg
+ FROM sales
+ LEFT JOIN q1 ON sales.cust = q1.cust
+ AND sales.prod = q1.prod
+ AND sales.month = q1.month
+ ),
+ q3 AS
+ (SELECT q2.cust, q2.prod, q2.month, q2.during_avg, q1.avg_q AS before_avg
+ FROM q2
+ LEFT JOIN q1 ON q2.cust = q1.cust
+ AND q2.prod = q1.prod
+ AND q2.month = q1.month + 1
+ ),
+ q4 AS
+(SELECT q3.cust, q3.prod, q3.month, ROUND(q3.before_avg) AS before_avg, ROUND(q3.during_avg) AS during_avg, ROUND(q1.avg_q) AS after_avg
+ FROM q3
+ LEFT JOIN q1 ON q3.cust = q1.cust
+ AND q3.prod = q1.prod
+ AND q3.month = q1.month - 1
+ )
+SELECT *
+FROM q4
+GROUP BY cust, prod, month, before_avg, during_avg, after_avg
+ORDER BY cust, prod, month
+
+/*---------------------------------------------------------------------
+Query #3
+For each customer, product and state combination, compute (1) the product’s average
+sale of this customer for the state (i.e., the simple AVG for the group-by attributes –
+this is the easy part), (2) the average sale of the product and the state but for all of the
+other customers, (3) the customer’s average sale for the given state, but for all of the
+other products, and (4) the customer’s average sale for the given product, but for all of
+the other states.
+---------------------------------------------------------------------*/
+
+WITH q1 AS
+(SELECT cust, prod, state, AVG(quant) AS avg1
+ FROM sales
+ GROUP BY cust, prod, state
+),
+q2 AS
+(SELECT q1.cust, q1.prod, q1.state, q1.avg1, AVG(sales.quant) AS avg2
+ FROM q1
+ JOIN sales ON q1.cust <> sales.cust
+ AND q1.prod = sales.prod
+ AND q1.state = sales.state
+ GROUP BY q1.cust, q1.prod, q1.state, q1.avg1
+),
+q3 AS
+(SELECT q2.cust, q2.prod, q2.state, q2.avg1, q2.avg2, AVG(sales.quant) AS avg3
+ FROM q2
+ JOIN sales ON q2.cust = sales.cust
+ AND q2.prod <> sales.prod
+ AND q2.state = sales.state
+ GROUP BY q2.cust, q2.prod, q2.state, q2.avg1, q2.avg2
+)
+SELECT q3.cust, q3.prod, q3.state, 
+ROUND(q3.avg1) AS prod_avg, 
+ROUND(q3.avg2) AS other_cust_avg, 
+ROUND(q3.avg3) AS other_prod_avg, 
+ROUND(AVG(sales.quant)) AS other_state_avg
+FROM q3
+JOIN sales ON q3.cust = sales.cust
+AND q3.prod = sales.prod
+AND q3.state <> sales.state
+GROUP BY q3.cust, q3.prod, q3.state, q3.avg1, q3.avg2, q3.avg3
+
+/*---------------------------------------------------------------------
+Query #4
+Find the customers with the top 3 highest quantities purchased in New Jersey (NJ).
+Show the customer’s name, the quantity and product purchased, and the date they
+purchased it. If there are ties, show all – refer to the sample output below
+---------------------------------------------------------------------*/
+WITH q1 AS
+(SELECT s.cust, MAX(quant) AS first_max
+FROM sales AS s
+WHERE state = 'NJ'
+GROUP BY s.cust
+ORDER BY s.cust
+),
+q2 AS
+(SELECT s.cust, MAX(quant) AS second_max
+ FROM sales AS s
+ JOIN q1 ON q1.cust = s.cust
+ AND quant < first_max
+ WHERE state = 'NJ'
+ GROUP BY s.cust
+ ORDER BY s.cust
+),
+q3 AS
+(SELECT s.cust, MAX(quant) AS third_max
+ FROM sales AS s
+ JOIN q2 ON q2.cust = s.cust
+ AND quant < second_max
+ WHERE state = 'NJ'
+ GROUP BY s.cust
+ ORDER BY s.cust
+)
+SELECT s.cust, s.quant, s.prod, s.date
+FROM sales AS s
+JOIN q1 ON q1.cust = s.cust
+AND s.quant = first_max
+AND state = 'NJ'
+UNION
+SELECT s.cust, s.quant, s.prod, s.date
+FROM sales AS s
+JOIN q2 ON q2.cust = s.cust
+AND s.quant = second_max
+AND state = 'NJ'
+UNION
+SELECT s.cust, s.quant, s.prod, s.date
+FROM sales AS s
+JOIN q3 ON q3.cust = s.cust
+AND s.quant = third_max
+AND state = 'NJ'
+ORDER BY cust, quant DESC
+
+
+/*---------------------------------------------------------------------
+Query #5
+For each product, find the median sales quantity (assume an odd number of sales for
+simplicity of presentation). (NOTE – “median” is defined as “denoting or relating to a
+value or quantity lying at the midpoint of a frequency distribution of observed values or
+quantities, such that there is an equal probability of falling above or below it.” E.g.,
+Median value of the list {13, 23, 12, 16, 15, 9, 29} is 15.
+---------------------------------------------------------------------*/
+
+WITH q1 AS
+(SELECT prod, quant
+ FROM sales
+ ORDER BY prod, quant
+),
+q2 AS
+(SELECT q1.prod, q1.quant, (count(n.quant)) AS pos
+ FROM q1, q1 as n
+ WHERE n.prod = q1.prod
+ AND n.quant <= q1.quant
+ GROUP BY q1.prod, q1.quant
+ ORDER BY q1.prod, q1.quant
+ ),
+q3 AS
+(SELECT q1.prod, q1.quant, q2.pos
+FROM q1
+LEFT JOIN q2
+ON q2.prod = q1.prod
+AND q2.quant = q1.quant
+),
+med_pos AS
+(SELECT q1.prod, (count(q1.quant)/2) AS median_pos
+ FROM q1
+ GROUP BY q1.prod
+),
+t1 AS
+(SELECT q3.prod, mp.median_pos
+FROM q3, med_pos AS mp
+WHERE q3.prod = mp.prod
+AND q3.pos = mp.median_pos
+)
+SELECT prod AS product, median_pos AS median_quant
+FROM t1
+GROUP BY prod, median_pos
